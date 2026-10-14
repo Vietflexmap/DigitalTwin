@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Cesium.js" defer></script>
 <script src="./physics.js" defer></script>
 <script src="./terrain.js" defer></script>
+<script src="./flow.js" defer></script>
 <script src="./app.js" defer></script>
 </head>
 <body>
@@ -41,7 +42,24 @@
 <div class="kpi"><span>Chi phí sơ bộ</span><strong id="kCost">—</strong><small>triệu VND · giả định</small></div>
 <div class="kpi"><span>Kiểm tra vật lý</span><strong id="kPhysics">—</strong><small id="kResidual">Mass / Energy</small></div>
 </div>
-<div class="map-panel"><div class="map-top"><div><h2>GIS / DEM / CesiumJS</h2><span id="mapSub">Nền OSM + bề mặt DEM công khai + mạng ống tổng hợp</span></div><div><button id="flyBtn" class="small">◎ Về vùng minh họa</button></div></div><div id="cesiumMap"></div><div class="map-legend"><span><i class="dot blue"></i>Nguồn nước</span><span><i class="dot cyan"></i>Mạng đường ống</span><span><i class="dot orange"></i>Cụm dân cư giả định</span><span id="demLabel">DEM: đang tải</span></div></div>
+<div class="map-panel"><div class="map-top"><div><h2>GIS / DEM / CesiumJS</h2><span id="mapSub">Nền OSM + bề mặt DEM công khai + mạng ống tổng hợp</span></div><div><button id="flyBtn" class="small">◎ Về vùng minh họa</button></div></div><div class="flowbar">
+ <div class="flowtitle"><span class="flowpulse" aria-hidden="true"></span><div><b>DÒNG NƯỚC ĐANG MÔ PHỎNG</b><small>Hạt di chuyển theo dấu Q và vận tốc v tính từ thủy lực, phát hình tăng tốc</small></div></div>
+ <label class="flowcheck"><input id="flowToggle" type="checkbox" checked> Hiển thị hạt nước</label>
+ <label class="flowslider">Gia tốc hình ảnh <input id="flowSpeed" type="range" min="30" max="900" step="30" value="240"><output id="flowSpeedValue">240×</output></label>
+ <label class="flowslider">Mật độ <input id="flowDensity" type="range" min="2" max="14" value="7"><output id="flowDensityValue">7/ống</output></label>
+</div>
+<div id="cesiumMap"></div><div id="flowReadout" class="flowreadout">Đang tính vận tốc của dòng chảy…</div><div class="map-legend"><span><i class="dot blue"></i>Nguồn nước</span><span><i class="dot cyan"></i>Mạng đường ống</span><span><i class="dot orange"></i>Cụm dân cư giả định</span><span><i class="dot glow"></i>Hạt dòng chảy động</span><span id="demLabel">DEM: đang tải</span></div></div>
+<div class="panel scenario-panel">
+ <div class="panelhead"><h2>Dữ liệu giả định động · 24 giờ theo kịch bản</h2><span class="num">DYNAMIC</span></div>
+ <div class="scenario-metrics">
+  <div><small>Kịch bản đang chạy</small><b id="scenarioActive">Mùa kiệt</b></div>
+  <div><small>Tổng lượng cấp trong 24 giờ</small><b id="scenarioVolume">— m³/ngày</b></div>
+  <div><small>Lưu lượng đỉnh</small><b id="scenarioPeak">— L/s</b></div>
+  <div><small>Giờ đang phát</small><b id="scenarioHour">10:00</b></div>
+ </div>
+ <p class="fine">Dữ liệu từng giờ được giải lại từ nhu cầu, nguồn và áp lực giả định; không phải số đo thực. Bấm vào một hàng để chuyển giờ mô phỏng.</p>
+ <div class="tablebox hour-scroll"><table><thead><tr><th>Giờ</th><th>Kịch bản</th><th>Nhu cầu (L/s)</th><th>Đã cấp (L/s)</th><th>Đáp ứng</th><th>Áp lực min (m)</th><th>Trạng thái</th></tr></thead><tbody id="hourRows"><tr><td colspan="7">Đang tạo dữ liệu mô phỏng…</td></tr></tbody></table></div>
+</div>
 <div class="subgrid">
 <div class="panel"><div class="panelhead"><h2>Thủy lực tại nút</h2><span class="num">04</span></div><div class="tablebox"><table><thead><tr><th>Nút</th><th>Cao độ m</th><th>Áp lực m</th><th>Cấp L/s</th><th>Hộ</th></tr></thead><tbody id="nodeRows"></tbody></table></div></div>
 <div class="panel"><div class="panelhead"><h2>Thủy lực đường ống</h2><span class="num">05</span></div><div class="tablebox"><table><thead><tr><th>Ống</th><th>D mm</th><th>Q L/s</th><th>v m/s</th><th>h<sub>f</sub> m</th></tr></thead><tbody id="pipeRows"></tbody></table></div></div>
@@ -51,7 +69,7 @@
 <div class="panel"><div class="panelhead"><h2>Đánh giá vật lý</h2><span class="num">07</span></div><div id="verification" class="qa"></div><p class="fine">Kiểm chứng phương trình ≠ kiểm định ngoài thực địa. Đầu vào giả định không cung cấp bằng chứng độ chính xác thực tế.</p></div>
 </div>
 <div class="panel"><div class="panelhead"><h2>Tối ưu hóa đa mục tiêu và đối chứng</h2><span class="num">08</span></div><p class="muted">Duyệt các bộ đường kính thương mại trên 3 nhóm ống, 3 lựa chọn tuyến. Mỗi phương án được giải lại thủy lực. Bộ tối ưu trên trình duyệt là JS; nếu kết nối backend sẽ dùng EPANET/WNTR.</p><div class="actions"><button id="optBtn" class="primary">◈ Chạy tối ưu Pareto</button><span id="optInfo" class="muted"></span></div><div class="tablebox"><table><thead><tr><th>Phương án</th><th>Chi phí (triệu)</th><th>Thiếu nước (%)</th><th>Rủi ro áp lực</th><th>Khả thi</th><th></th></tr></thead><tbody id="optRows"><tr><td colspan="6" class="muted">Chưa chạy tối ưu</td></tr></tbody></table></div></div>
-<div class="panel export"><div class="panelhead"><h2>Xuất dữ liệu và mô hình</h2><span class="num">09</span></div><div class="actions"><button id="jsonBtn">↓ Báo cáo JSON</button><button id="csvBtn">↓ Kết quả CSV</button><button id="inpBtn">↓ EPANET INP</button><button id="geoBtn">↓ Mạng GeoJSON</button></div><p class="fine">INP dùng để nhập vào EPANET/WNTR, không phải bằng chứng rằng trình duyệt đã chạy engine EPANET. API tùy chọn phải được triển khai riêng để bật tính toán chính thức.</p></div>
+<div class="panel export"><div class="panelhead"><h2>Xuất dữ liệu và mô hình</h2><span class="num">09</span></div><div class="actions"><button id="jsonBtn">↓ Báo cáo JSON</button><button id="csvBtn">↓ Kết quả CSV</button><button id="inpBtn">↓ EPANET INP</button><button id="geoBtn">↓ Mạng GeoJSON</button><button id="hourlyBtn">↓ Chuỗi 24 giờ CSV</button></div><p class="fine">INP dùng để nhập vào EPANET/WNTR, không phải bằng chứng rằng trình duyệt đã chạy engine EPANET. API tùy chọn phải được triển khai riêng để bật tính toán chính thức.</p></div>
 <footer>Vietflexmap · DigitalTwin · Synthetic research demonstration · Dữ liệu OSM © OpenStreetMap contributors · DEM © Mapzen contributors / nguồn tổng hợp</footer>
 </section></main><div id="toast" role="status"></div>
 </body></html>
