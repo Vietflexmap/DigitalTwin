@@ -91,6 +91,8 @@ function renderHourTelemetry(){
     '%</td><td>'+nfmt(s.minP,2)+'</td><td class="'+(q.servicePass?'good':'bad')+'">'+status+'</td></tr>';
  }).join('');
 }
+// Read-only diagnostics for field-demo QA and automated visual-motion verification.
+window.__twinFlowDebug=()=>flowLayer?.snapshot()||null;
 function flowStatus(){
  const snap=flowLayer?.snapshot();
  if(!snap){$('flowReadout').textContent='Hạt nước động cần CesiumJS; các kết quả thủy lực vẫn được tính độc lập.';return}
