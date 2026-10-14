@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Vietflexmap DigitalTwin: GIS, CesiumJS, DEM thật và mô phỏng thủy lực cấp nước tự chảy với số liệu giả định.">
+<title>Vietflexmap · DigitalTwin | Gravity-Fed Water Planning</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Widgets/widgets.css">
+<link rel="stylesheet" href="./style.css">
+<script src="https://cdn.jsdelivr.net/npm/cesium@1.126/Build/Cesium/Cesium.js" defer></script>
+<script src="./physics.js" defer></script>
+<script src="./terrain.js" defer></script>
+<script src="./app.js" defer></script>
+</head>
+<body>
+<header class="topbar"><div class="brand"><span class="emblem">V</span><div><strong>VIETFLEXMAP <span>DigitalTwin</span></strong><small>GEOSPATIAL · HYDRAULICS · AGENT MODELING</small></div></div><div class="top-right"><span class="pill alert">DỮ LIỆU GIẢ ĐỊNH</span><span class="pill" id="engineBadge">Đang khởi tạo</span><a target="_blank" rel="noopener" href="https://github.com/Vietflexmap/DigitalTwin">GitHub ↗</a></div></header>
+<main class="layout">
+<aside class="sidebar">
+<div class="panel">
+<div class="panelhead"><h2>Điều khiển mô phỏng</h2><span class="num">01</span></div>
+<div class="field"><label>Chế độ tính toán</label><select id="engine"><option value="js">JavaScript · mô hình giáo dục</option><option value="epanet">EPANET 2.2 / WNTR · máy chủ</option></select></div>
+<div class="field"><label>Địa chỉ dịch vụ EPANET (tùy chọn)</label><input type="url" id="apiUrl" placeholder="https://your-epanet-api.example" autocomplete="off"><small>GitHub Pages không chạy Python. Cần dịch vụ WNTR riêng để chọn EPANET.</small></div>
+<div class="field"><label>Kịch bản</label><select id="scenario"><option value="dry">Mùa kiệt</option><option value="wet">Mùa mưa</option><option value="drought">Hạn bất lợi</option><option value="peak">Gia tăng nhu cầu</option></select></div>
+<div class="field"><label>Tuyến thiết kế</label><select id="route"><option value="B">B · Bám đường</option><option value="A">A · Tuyến ngắn</option><option value="C">C · Men sườn</option></select></div>
+<div class="field"><div class="labelrow"><label>Giờ mô phỏng</label><output id="hourValue">10:00</output></div><input id="hour" type="range" min="0" max="23" value="10"></div>
+<div class="field"><div class="labelrow"><label>Cột áp nguồn (m)</label><output id="headValue">942</output></div><input id="head" type="range" min="800" max="1050" value="942" step="1"></div>
+<div class="field"><div class="labelrow"><label>Giới hạn nguồn (L/s)</label><output id="capacityValue">2.00</output></div><input id="capacity" type="range" min="0.4" max="4" step="0.05" value="2"></div>
+<div class="field"><div class="labelrow"><label>Hệ số nhám Hazen–Williams C</label><output id="roughnessValue">130</output></div><input id="roughness" type="range" min="80" max="150" step="1" value="130"></div>
+<div class="field"><div class="labelrow"><label>Hệ số nhu cầu</label><output id="demandValue">1.00×</output></div><input id="demand" type="range" min=".5" max="1.8" step=".05" value="1"></div>
+<div class="field"><label>Đường kính nhóm tuyến (mm)</label><div class="diameters"><select id="diam0"><option>50</option><option selected>63</option><option>75</option><option>90</option></select><select id="diam1"><option>32</option><option>40</option><option selected>50</option><option>63</option></select><select id="diam2"><option>32</option><option>40</option><option selected>50</option><option>63</option></select><select id="diam3"><option>25</option><option selected>40</option><option>50</option><option>63</option></select><select id="diam4"><option>25</option><option selected>40</option><option>50</option><option>63</option></select></div></div>
+<div class="actions"><button class="primary" id="runBtn">▶ Chạy mô phỏng</button><button id="autoBtn">⏯ Chạy 24 giờ</button><button id="resetBtn">↺ Mặc định</button></div>
+</div>
+<div class="panel"><div class="panelhead"><h2>Agent mô hình cơ bản</h2><span class="num">02</span></div><p class="muted">Agent dựa trên quy tắc: phân tích ràng buộc và đề xuất kịch bản; không điều khiển công trình.</p><button id="agentBtn" class="secondary full">✧ Phân tích và đề xuất</button><div class="agent-answer" id="agentAnswer">Chọn “Phân tích và đề xuất” để xem đánh giá khả thi.</div><button id="agentApply" class="secondary full" disabled>Áp dụng kịch bản đề xuất</button></div>
+<div class="panel"><div class="panelhead"><h2>Kiểm tra nguồn địa lý</h2><span class="num">03</span></div><div id="geoStatus" class="muted">Chờ tải OSM / Mapzen DEM…</div><label class="switchline"><input type="checkbox" id="demToggle" checked> Hiển thị bề mặt DEM 3D</label><label class="switchline"><input type="checkbox" id="elevationToggle"> Sử dụng cao độ DEM cho mạng thủy lực</label><p class="fine">Bật cao độ DEM có thể làm mạng giả định không đáp ứng áp lực thiết kế; đó là kết quả hợp lệ cần đánh giá, không tự hiệu chỉnh.</p><button id="reloadDEM" class="secondary full">↻ Tải lại DEM nguồn mở</button></div>
+</aside>
+<section class="workspace">
+<div class="intro"><div><p class="eyebrow">PHYSICS-VALIDATED DIGITAL TWIN · TECHNICAL SANDBOX</p><h1>Quy hoạch cấp nước tự chảy <span>vùng núi Việt Nam</span></h1><p class="muted">Mẫu địa lý khu vực Sơn La, không phải vị trí khảo sát được xác nhận. Mọi công trình, thông số thủy lực, dân cư và số đo là <b>giả định</b>.</p></div><div class="phase">DATA <b>→</b> HYDRAULICS <b>→</b> OPTIMIZE <b>→</b> VERIFY <b>→</b> GIS <b>→</b> EXPORT</div></div>
+<div class="kpis">
+<div class="kpi"><span>Lưu lượng cấp</span><strong id="kFlow">—</strong><small>L/s · trong kịch bản</small></div>
+<div class="kpi"><span>Đáp ứng nhu cầu</span><strong id="kCoverage">—</strong><small>% nhu cầu nước</small></div>
+<div class="kpi"><span>Áp lực nhỏ nhất</span><strong id="kPressure">—</strong><small>m cột nước</small></div>
+<div class="kpi"><span>Chi phí sơ bộ</span><strong id="kCost">—</strong><small>triệu VND · giả định</small></div>
+<div class="kpi"><span>Kiểm tra vật lý</span><strong id="kPhysics">—</strong><small id="kResidual">Mass / Energy</small></div>
+</div>
+<div class="map-panel"><div class="map-top"><div><h2>GIS / DEM / CesiumJS</h2><span id="mapSub">Nền OSM + bề mặt DEM công khai + mạng ống tổng hợp</span></div><div><button id="flyBtn" class="small">◎ Về vùng minh họa</button></div></div><div id="cesiumMap"></div><div class="map-legend"><span><i class="dot blue"></i>Nguồn nước</span><span><i class="dot cyan"></i>Mạng đường ống</span><span><i class="dot orange"></i>Cụm dân cư giả định</span><span id="demLabel">DEM: đang tải</span></div></div>
+<div class="subgrid">
+<div class="panel"><div class="panelhead"><h2>Thủy lực tại nút</h2><span class="num">04</span></div><div class="tablebox"><table><thead><tr><th>Nút</th><th>Cao độ m</th><th>Áp lực m</th><th>Cấp L/s</th><th>Hộ</th></tr></thead><tbody id="nodeRows"></tbody></table></div></div>
+<div class="panel"><div class="panelhead"><h2>Thủy lực đường ống</h2><span class="num">05</span></div><div class="tablebox"><table><thead><tr><th>Ống</th><th>D mm</th><th>Q L/s</th><th>v m/s</th><th>h<sub>f</sub> m</th></tr></thead><tbody id="pipeRows"></tbody></table></div></div>
+</div>
+<div class="subgrid">
+<div class="panel"><div class="panelhead"><h2>Biểu đồ 24 giờ</h2><span class="num">06</span></div><canvas id="chart" width="680" height="220" aria-label="Biểu đồ lưu lượng theo thời gian"></canvas></div>
+<div class="panel"><div class="panelhead"><h2>Đánh giá vật lý</h2><span class="num">07</span></div><div id="verification" class="qa"></div><p class="fine">Kiểm chứng phương trình ≠ kiểm định ngoài thực địa. Đầu vào giả định không cung cấp bằng chứng độ chính xác thực tế.</p></div>
+</div>
+<div class="panel"><div class="panelhead"><h2>Tối ưu hóa đa mục tiêu và đối chứng</h2><span class="num">08</span></div><p class="muted">Duyệt các bộ đường kính thương mại trên 3 nhóm ống, 3 lựa chọn tuyến. Mỗi phương án được giải lại thủy lực. Bộ tối ưu trên trình duyệt là JS; nếu kết nối backend sẽ dùng EPANET/WNTR.</p><div class="actions"><button id="optBtn" class="primary">◈ Chạy tối ưu Pareto</button><span id="optInfo" class="muted"></span></div><div class="tablebox"><table><thead><tr><th>Phương án</th><th>Chi phí (triệu)</th><th>Thiếu nước (%)</th><th>Rủi ro áp lực</th><th>Khả thi</th><th></th></tr></thead><tbody id="optRows"><tr><td colspan="6" class="muted">Chưa chạy tối ưu</td></tr></tbody></table></div></div>
+<div class="panel export"><div class="panelhead"><h2>Xuất dữ liệu và mô hình</h2><span class="num">09</span></div><div class="actions"><button id="jsonBtn">↓ Báo cáo JSON</button><button id="csvBtn">↓ Kết quả CSV</button><button id="inpBtn">↓ EPANET INP</button><button id="geoBtn">↓ Mạng GeoJSON</button></div><p class="fine">INP dùng để nhập vào EPANET/WNTR, không phải bằng chứng rằng trình duyệt đã chạy engine EPANET. API tùy chọn phải được triển khai riêng để bật tính toán chính thức.</p></div>
+<footer>Vietflexmap · DigitalTwin · Synthetic research demonstration · Dữ liệu OSM © OpenStreetMap contributors · DEM © Mapzen contributors / nguồn tổng hợp</footer>
+</section></main><div id="toast" role="status"></div>
+</body></html>
