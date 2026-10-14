@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict');
+const {speedFromFlow,timeAdvance}=require('../flow.js');
+assert.equal(speedFromFlow(0,50),0);
+assert.ok(Math.abs(speedFromFlow(1,50)-0.5092958178940651)<1e-9);
+assert.ok(speedFromFlow(1,25)>speedFromFlow(1,50));
+assert.equal(timeAdvance(.2,1,100,100,1,1),.2);
+assert.ok(Math.abs(timeAdvance(.2,1,100,50,1,1)-.7)<1e-9);
+assert.ok(Math.abs(timeAdvance(.2,1,100,50,1,-1)-.7)<1e-9);
+assert.ok(Math.abs(timeAdvance(.9,1,100,50,1,1)-.4)<1e-9);
+assert.equal(timeAdvance(.3,1,0,100,1,1),.3);
+console.log('PASS: flow animation uses physical water velocity, pipe lengths, clock scaling and signed flow direction');
