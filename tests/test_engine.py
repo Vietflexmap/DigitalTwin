@@ -7,6 +7,8 @@ def test_official_epanet_engine_and_mass_balance():
     assert s["synthetic"] is True
     assert len(s["nodes"])==6 and len(s["pipes"])==5
     assert s["sourceFlow"]>0
+    assert s["quality"]["physicsPass"] is True
+    assert s["coverage"] > .95
     assert s["quality"]["maxMass"]<0.01
     assert s["totalDelivered"]>0
 def test_scenario_hour_demand_varies():
@@ -24,3 +26,14 @@ def test_health_and_invalid_input():
     assert r.status_code==200 and r.json()["fieldValidated"] is False
     bad=client.post('/api/simulate',json={"scenario":"invalid"})
     assert bad.status_code==422
+
+def test_api_24h_and_official_optimizer():
+    daily=client.post('/api/day',json={})
+    assert daily.status_code==200
+    assert len(daily.json()['series'])==24
+    result=client.post('/api/optimize',json={})
+    assert result.status_code==200, result.text[:600]
+    obj=result.json()
+    assert obj['engine']=='epanet-2.2-WNTR-NSGA-II'
+    assert obj['evaluated']>0
+    assert obj['globalOptimalityProven'] is False
