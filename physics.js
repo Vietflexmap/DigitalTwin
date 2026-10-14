@@ -97,10 +97,10 @@ function optimization(base){const opts=opt(base),rows=[];let id=0;
  return {engine:'js-enumeration',evaluated:rows.length,feasible:feasible.length,frontier:frontier.slice(0,40),best:frontier[0]||null,objectives:['cost_MVND','unmet_weighted_pct','pressure_risk'],allCount:frontier.length}
 }
 function inp(options){const o=opt(options),r=ROUTES[o.route]||ROUTES.B,z=elevations(o),p=params(o);
- const j=NODES.slice(1).map((n,i)=>[n.id,fmt(z[i+1]),fmt(n.demand*p.mult/1000)].join(' ')).join('\n');
+ const j=NODES.slice(1).map((n,i)=>[n.id,fmt(z[i+1]),Number(n.demand*p.mult).toFixed(6)].join(' ')).join('\n');
  const pl=PIPES.map((t,i)=>[t.id,NODES[t.a].id,NODES[t.b].id,fmt(t.len*r.len[i]),fmt(o.diameters[i]),fmt(o.roughness),0,'Open'].join(' ')).join('\n');
  const co=NODES.map(n=>n.id+' '+n.lon+' '+n.lat).join('\n');
- return '[TITLE]\n; SYNTHETIC MODEL — NOT AN ENGINEERING DESIGN\n[JUNCTIONS]\n;ID Elevation Demand(m3/s)\n'+j+
+ return '[TITLE]\n; SYNTHETIC MODEL — NOT AN ENGINEERING DESIGN\n[JUNCTIONS]\n;ID Elevation Demand(L/s) — UNITS LPS\n'+j+
  '\n[RESERVOIRS]\nSRC '+fmt(p.h)+'\n[PIPES]\n;ID Node1 Node2 Length(m) Diameter(mm) Roughness MinorLoss Status\n'+pl+
  '\n[OPTIONS]\nUNITS LPS\nHEADLOSS H-W\nDEMAND MODEL PDA\nMINIMUM PRESSURE 0\nREQUIRED PRESSURE 15\n[COORDINATES]\n'+co+'\n[END]\n';
 }
