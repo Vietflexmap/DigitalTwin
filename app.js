@@ -4,7 +4,7 @@
 (function(){'use strict';
 const P=window.TwinPhysics,T=window.DEMMapzen,$=id=>document.getElementById(id);
 const nfmt=(x,n=2)=>Number.isFinite(+x)?(+x).toFixed(n):'—';
-let state=JSON.parse(JSON.stringify(P.BASE)),current=null,series=[],viewer=null,dem=null,demMesh=null,agentProposal=null,optResult=null,runIndex=0,animation=null;
+let state=JSON.parse(JSON.stringify(P.BASE)),current=null,series=[],viewer=null,dem=null,demMesh=null,agentProposal=null,optResult=null,runIndex=0,animation=null,flowLayer=null;
 const escapeHTML=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(s){const e=$('toast');e.textContent=s;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),4200)}
 function jsonDownload(filename,content,mime='application/json'){
@@ -69,8 +69,54 @@ function render(){
  ['Phân phối khi thiếu nguồn',q.capacityRationing?'JS phân bổ tổng hợp':'Không cần phân bổ',true],
  ['Trạng thái dữ liệu','100% mạng giả định',true]];
  $('verification').innerHTML=qa.map(a=>'<div><small>'+a[0]+'</small><b style="color:'+(a[2]?'var(--green)':'var(--red)')+'">'+a[1]+'</b></div>').join('');
- plot();updateGeoEntities();
+ plot();renderHourTelemetry();updateGeoEntities();
 }
+
+function renderHourTelemetry(){
+ const arr=Array.isArray(series)?series:[];
+ const label=P.SCENARIOS[state.scenario]?.name||state.scenario;
+ $('scenarioActive').textContent=label+' · GIẢ ĐỊNH';
+ $('scenarioHour').textContent=String(state.hour).padStart(2,'0')+':00';
+ const volume=arr.reduce((total,s)=>total+(Number(s.sourceFlow)||0)*3.6,0);
+ const peak=arr.length?Math.max(...arr.map(s=>Number(s.sourceFlow)||0)):0;
+ $('scenarioVolume').textContent=nfmt(volume,2)+' m³/ngày';
+ $('scenarioPeak').textContent=nfmt(peak,3)+' L/s';
+ $('hourRows').innerHTML=arr.map(s=>{
+   const h=Number(s.hour),q=s.quality||{};
+   const status=!q.physicsPass?'Chưa đạt ràng buộc':s.coverage<.95?'Thiếu nước':s.minP<15?'Áp lực thấp':'Đạt mô phỏng';
+   const klass=h===state.hour?'hour-selected':'';
+   const safeScenario=escapeHTML(P.SCENARIOS[s.scenario]?.name||s.scenario||label);
+   return '<tr data-hour="'+h+'" class="'+klass+'"><td>'+String(h).padStart(2,'0')+':00</td><td>'+safeScenario+
+    '</td><td>'+nfmt(s.totalDemand,3)+'</td><td>'+nfmt(s.totalDelivered,3)+'</td><td>'+nfmt(s.coverage*100,1)+
+    '%</td><td>'+nfmt(s.minP,2)+'</td><td class="'+(q.servicePass?'good':'bad')+'">'+status+'</td></tr>';
+ }).join('');
+}
+function flowStatus(){
+ const snap=flowLayer?.snapshot();
+ if(!snap){$('flowReadout').textContent='Hạt nước động cần CesiumJS; các kết quả thủy lực vẫn được tính độc lập.';return}
+ const velocities=snap.streams.filter(a=>a.active).map(a=>a.velocity);
+ const avg=velocities.length?velocities.reduce((a,b)=>a+b,0)/velocities.length:0;
+ const travel=snap.streams.filter(a=>a.active).map(a=>a.visualTravelSeconds);
+ const meanTravel=travel.length?travel.reduce((a,b)=>a+b,0)/travel.length:0;
+ $('flowReadout').textContent='Tốc độ trung bình: '+nfmt(avg,3)+' m/s · Lưu lượng nguồn: '+nfmt(current?.sourceFlow||0,3)+
+ ' L/s · Hạt đang phát: '+snap.active+'/'+snap.count+' · Qua một ống khoảng '+nfmt(meanTravel,1)+
+ ' giây hình ảnh (×'+snap.timeScale+') · Mạng ống giả định';
+}
+function seekHour(hour){
+ const h=Math.max(0,Math.min(23,Math.round(Number(hour)||0)));
+ $('hour').value=h;values();
+ const model=series.find(s=>Number(s.hour)===h);
+ if(model && model.scenario===state.scenario){current=model;render();}
+ else run();
+}
+function exportHourly(){
+ if(!series.length){toast('Chưa có chuỗi kết quả 24 giờ');return}
+ const header=['hour','scenario','engine','source_flow_Lps','demand_Lps','delivered_Lps','coverage_percent','minimum_pressure_m','physics_pass','synthetic'];
+ const rows=series.map(x=>[x.hour,x.scenario,x.engine,nfmt(x.sourceFlow,7),nfmt(x.totalDemand,7),
+  nfmt(x.totalDelivered,7),nfmt(x.coverage*100,5),nfmt(x.minP,5),x.quality.physicsPass,true]);
+ jsonDownload('digitaltwin_'+state.scenario+'_24h_SYNTHETIC.csv',[header,...rows].map(r=>r.join(',')).join('\n'),'text/csv');
+}
+
 function plot(){
  const canvas=$('chart'),w=canvas.width,h=canvas.height,ctx=canvas.getContext('2d');
  ctx.clearRect(0,0,w,h);ctx.fillStyle='#0c2335';ctx.fillRect(0,0,w,h);
@@ -104,6 +150,12 @@ function updateGeoEntities(){
     distanceDisplayCondition:new C.DistanceDisplayCondition(0,18000)},
    description:'<b>Dữ liệu giả định</b><p>Cao độ sử dụng: '+nfmt(result?.z??n.z,1)+' m</p><p>Áp lực: '+nfmt(result?.pressure??0,2)+' m</p>'});
  });
+ if(window.TwinFlow?.FlowAnimation){
+  if(!flowLayer)flowLayer=new window.TwinFlow.FlowAnimation(viewer);
+  flowLayer.setOptions({enabled:$('flowToggle').checked,timeScale:+$('flowSpeed').value,density:+$('flowDensity').value});
+  flowLayer.sync(colored,P.NODES,mapHeight);
+ }
+ flowStatus();
 }
 function flyToArea(){
  if(!viewer)return;viewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(103.891,21.328,5200),
@@ -187,7 +239,7 @@ function init(){
  $('runBtn').addEventListener('click',()=>run());
  $('autoBtn').addEventListener('click',()=>{
   if(animation){clearInterval(animation);animation=null;$('autoBtn').textContent='⏯ Chạy 24 giờ';return}
-  $('autoBtn').textContent='■ Dừng';animation=setInterval(()=>{$('hour').value=(+$('hour').value+1)%24;values();run(false)},1600)
+  $('autoBtn').textContent='■ Dừng · 24 giờ';animation=setInterval(()=>seekHour((+($('hour').value)+1)%24),1600)
  });
  $('resetBtn').addEventListener('click',()=>{state=JSON.parse(JSON.stringify(P.BASE));fields();run()});
  $('agentBtn').addEventListener('click',agent);
@@ -195,10 +247,17 @@ function init(){
   state.diameters=agentProposal.diameters.map((x,i)=>{const opts=[...$('diam'+i).options].map(o=>+o.value);return opts.reduce((p,c)=>Math.abs(c-x)<Math.abs(p-x)?c:p)});
   fields();run();toast('Đã áp dụng kịch bản agent đề xuất, không điều khiển công trình')});
  $('optBtn').addEventListener('click',optimize);
- $('jsonBtn').addEventListener('click',()=>current&&jsonDownload('digitaltwin_simulation.json',JSON.stringify({metadata:{data:'synthetic',terrainSource:dem?.source||null,engine:current.engine,generated:new Date().toISOString(),limitations:'not field validated'},options:state,simulation:current,pareto:optResult},null,2)));
+ $('jsonBtn').addEventListener('click',()=>current&&jsonDownload('digitaltwin_simulation.json',JSON.stringify({metadata:{data:'synthetic',terrainSource:dem?.source||null,engine:current.engine,generated:new Date().toISOString(),limitations:'not field validated'},options:state,simulation:current,hourlySyntheticSeries:series,flowAnimation:flowLayer?.snapshot()||null,pareto:optResult},null,2)));
  $('csvBtn').addEventListener('click',csv);
  $('inpBtn').addEventListener('click',()=>jsonDownload('digitaltwin_synthetic_network.inp',P.inp(state),'text/plain'));
  $('geoBtn').addEventListener('click',geojson);
+ $('hourlyBtn').addEventListener('click',exportHourly);
+ $('hourRows').addEventListener('click',e=>{const tr=e.target.closest('tr[data-hour]');if(tr)seekHour(+tr.dataset.hour)});
+ $('flowToggle').addEventListener('change',()=>{flowLayer?.setOptions({enabled:$('flowToggle').checked});flowStatus()});
+ $('flowSpeed').addEventListener('input',()=>{$('flowSpeedValue').textContent=$('flowSpeed').value+'×';
+  flowLayer?.setOptions({timeScale:+$('flowSpeed').value});flowStatus()});
+ $('flowDensity').addEventListener('input',()=>{$('flowDensityValue').textContent=$('flowDensity').value+'/ống';
+  if(flowLayer)updateGeoEntities();flowStatus()});
  $('demToggle').addEventListener('change',()=>{if(demMesh)demMesh.show=$('demToggle').checked});
  $('elevationToggle').addEventListener('change',()=>{if($('elevationToggle').checked&&!dem){$('elevationToggle').checked=false;toast('Cần nạp được DEM thực trước khi áp dụng cao độ')}else if($('elevationToggle').checked){
   const src=dem.pointHeights.SRC;state.head=src+35;$('head').min=Math.floor(src-60);$('head').max=Math.ceil(src+160);$('head').value=state.head;run()
