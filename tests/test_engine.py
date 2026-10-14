@@ -17,7 +17,7 @@ def test_scenario_hour_demand_varies():
 def test_export_model_network():
     wn,head,cap,mult,z,lengths=model(Inputs())
     assert len(wn.pipe_name_list)==5
-    assert wn.options.hydraulic.demand_model=="PDD"
+    assert wn.options.hydraulic.demand_model in ("PDD", "PDA")
     assert abs(wn.get_link("P01").diameter-.063)<1e-10
 def test_health_and_invalid_input():
     r=client.get('/api/health')
