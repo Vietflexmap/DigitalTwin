@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict');
+const P=require('../physics.js');
+let p=P.simulate(P.BASE);
+assert.equal(p.engine,'js-educational');
+assert.equal(p.nodes.length,6);
+assert.equal(p.pipes.length,5);
+assert.ok(p.quality.physicsPass,'baseline must satisfy mass and energy');
+assert.ok(p.quality.maxMass<1e-6);
+assert.ok(p.quality.maxEnergy<1e-5);
+assert.ok(p.sourceFlow>0);
+assert.ok(p.coverage>=.95);
+assert.ok(P.loss(500,1,32,130)>P.loss(500,1,63,130),'smaller pipe => more friction');
+let drought=P.simulate({...P.BASE,scenario:'drought'});
+assert.ok(drought.coverage<=p.coverage+1e-7,'source drought should not improve service');
+const out=P.optimization(P.BASE);
+assert.equal(out.evaluated,192);
+assert.ok(out.allCount>0);
+for(const a of out.frontier)for(const b of out.frontier)
+  assert.ok(!P.__dominates||!P.__dominates(b.f,a.f));
+const inp=P.inp(P.BASE);
+assert.ok(inp.includes('UNITS LPS'));
+assert.match(inp,/H1 903\.000 0\.[0-9]+/);
+assert.ok(!inp.includes('Demand(m3/s)'),'EPANET LPS demand units must not be m3/s');
+const explicit=P.simulate({...P.BASE,elevationOverride:{H4:2000}});
+assert.ok(explicit.nodes.find(n=>n.id==='H4').z===2000);
+console.log('PASS: synthetic JS solver, physical checks, drought, Pareto, DEM elevations, INP LPS units');
