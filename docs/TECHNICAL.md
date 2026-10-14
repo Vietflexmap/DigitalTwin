@@ -129,3 +129,37 @@ Automated GitHub Actions run those checks after repository updates; engine tests
 6. Deliver final CesiumJS WebGIS, EPANET model, full provenance, QA/QC log, technical handbook and transfer package.
 
 **No field data are distributed in this repository.**
+
+
+## 9. Dynamic water-flow visualization and hourly synthetic telemetry
+
+### Kinematics of rendered droplets
+`flow.js` adds CesiumJS point entities to the **synthetic** pipes; each frame advances the particle's dimensionless progress along the geolocated pipe line:
+
+```
+A = π × (D_m)² / 4
+v_mps = abs(Q_Lps / 1000) / A
+Δprogress = sign(Q) × v_mps × dt_real_seconds × playback_factor / L_model_m
+progress = (progress + Δprogress) mod 1
+```
+
+The sign of EPANET/JS flow determines particle travel direction; the sign is not randomized. Markers stop at zero flow. For demonstration the playback factor defaults to 240× (configurable 30×–900×) and seven markers per segment (2–14). **These settings accelerate visualization only**; they do not modify water discharge, hydraulic pressure, velocity, optimization or computed scenario data. At physical scale, a 500 m pipe with 0.5 m/s flow would take ~1000 s; at 240× visualization speed ~4.2 s for a droplet to traverse the depicted pipe. The line between nodes is a conceptual GIS line, not a surveyed 3D alignment.
+
+For multi-hour playback the interface reuses the precomputed 24-hour series for the selected scenario, then updates the displayed results and particle speed for each hourly state. Re-running simulation with changed parameters recomputes hourly data; changing cosmetic playback speed does not recompute hydraulics.
+
+### Synthetic 24-hour telemetry
+The visible table lists 24 hourly solved states for the selected scenario (dry, wet, drought or peak): time, requested L/s, supplied L/s, percent covered, minimum pressure m and feasibility flag. Volume:
+```
+volume_m3_per_day = Σ_(h=0..23) Q_source_Lps(h) × 3.6
+```
+This is a rectangular hourly integration of modeled flow (L/s) over 3600 seconds and is **not field metering**. Peak flow is the maximum modeled hourly source discharge.
+
+Download `digitaltwin_<scenario>_24h_SYNTHETIC.csv` for these data; the JSON export now includes hourly series and a snapshot of the display-only flow playback. The UI is explicit that GIS imagery/DEM may be real open data while pipe routes, engineering dimensions, village demands and values are synthetic.
+
+### QA
+```bash
+node tests/flow.cjs
+python tests/browser_smoke.py
+```
+
+Browser smoke test verifies actual Cesium point movement over several render frames, reduced simulated flow in the drought scenario, on/off display behavior, live 24-hour selection and CSV export. The test uses GPU/software WebGL and available CDN/OSM/DEM access. Neither those animation checks nor conservation residual tests constitute field validation.
