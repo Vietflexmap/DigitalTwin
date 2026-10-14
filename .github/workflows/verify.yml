@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --check physics.js && node --check app.js && node --check terrain.js
-      - run: node tests/physics.cjs
+      - run: node tests/physics.cjs && node tests/flow.cjs
   epanet:
     runs-on: ubuntu-latest
     steps:
